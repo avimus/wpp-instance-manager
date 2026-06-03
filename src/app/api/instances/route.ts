@@ -1,8 +1,10 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getUserCtx } from '@/lib/user-context'
 import { Errors, ok, created } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import * as wpp from '@/lib/wpp/client'
+import type { InstanceStatus } from '@/lib/supabase/types'
 
 const CreateInstanceSchema = z.object({
   tenant_id: z.string().uuid(),
@@ -12,16 +14,33 @@ const CreateInstanceSchema = z.object({
 })
 
 export async function GET(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Errors.unauthorized()
+  const ctx = await getUserCtx()
+  if (!ctx) return Errors.unauthorized()
+  const { role, tenantId, userId } = ctx
 
-  const role = user.app_metadata?.role as string
-  const tenantId = user.app_metadata?.tenant_id as string | undefined
+  // [DEBUG-1] Contexto resolvido pelo getUserCtx
+  logger.info({ userId, role, tenantId }, '[DEBUG] GET /api/instances ctx')
+
+  const supabase = createClient()
+  const svc = createServiceClient()
   const url = new URL(request.url)
   const filterTenant = url.searchParams.get('tenant_id')
   const filterStatus = url.searchParams.get('status')
   const search = url.searchParams.get('search')
+
+  // [DEBUG-2] Query bruta via service client (bypassa RLS) para o tenant resolvido
+  if (tenantId) {
+    const { data: rawRows, error: rawErr } = await svc
+      .from('instances')
+      .select('id, tenant_id, status')
+      .eq('tenant_id', tenantId)
+    logger.info(
+      { tenantId, rawCount: rawRows?.length ?? 0, rawRows, rawErr: rawErr?.message },
+      '[DEBUG] GET /api/instances raw (service client, sem RLS)',
+    )
+  } else {
+    logger.info({ tenantId }, '[DEBUG] GET /api/instances tenantId vazio — query bruta pulada')
+  }
 
   let query = supabase
     .from('instances')
@@ -35,10 +54,18 @@ export async function GET(request: Request) {
     query = query.eq('tenant_id', filterTenant)
   }
 
-  if (filterStatus) query = query.eq('status', filterStatus)
+  // Status filter is admin-only: clients must always see all their instances
+  // (including offline/pending) so they can trigger reconnection.
+  if (role === 'admin' && filterStatus) query = query.eq('status', filterStatus as InstanceStatus)
   if (search) query = query.ilike('phone_number', `%${search}%`)
 
   const { data, error, count } = await query.order('created_at', { ascending: false })
+
+  // [DEBUG-3] Resultado final após RLS + filtros
+  logger.info(
+    { total: count, returned: data?.length ?? 0, error: error?.message },
+    '[DEBUG] GET /api/instances resultado final',
+  )
 
   if (error) {
     logger.error({ error }, 'GET /api/instances failed')
@@ -49,10 +76,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Errors.unauthorized()
-  if (user.app_metadata?.role !== 'admin') return Errors.forbidden()
+  const ctx = await getUserCtx()
+  if (!ctx) return Errors.unauthorized()
+  if (ctx.role !== 'admin') return Errors.forbidden()
 
   const body = await request.json() as unknown
   const parsed = CreateInstanceSchema.safeParse(body)

@@ -1,23 +1,23 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { getUserCtx } from '@/lib/user-context'
 import { Errors, ok } from '@/lib/api-response'
+import type { Severity } from '@/lib/supabase/types'
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Errors.unauthorized()
-
-  const role = user.app_metadata?.role as string
-  const tenantId = user.app_metadata?.tenant_id as string | undefined
+  const ctx = await getUserCtx()
+  if (!ctx) return Errors.unauthorized()
+  const { role, tenantId } = ctx
 
   // Verify the requested instance is accessible to this user before returning logs.
   // Using service client to fetch the instance so we can do an explicit access check
   // rather than relying on RLS silently returning empty.
   const svc = createServiceClient()
-  const { data: instance } = await svc
+  const { data: instanceRaw } = await svc
     .from('instances')
     .select('id, tenant_id')
     .eq('id', params.id)
     .single()
+  const instance = instanceRaw as { id: string; tenant_id: string } | null
 
   if (!instance) return Errors.notFound('Instance not found')
   if (role !== 'admin' && instance.tenant_id !== tenantId) return Errors.forbidden()
@@ -40,7 +40,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     .range(offset, offset + limit - 1)
 
   if (type) query = query.eq('event_type', type)
-  if (severity) query = query.eq('severity', severity)
+  if (severity) query = query.eq('severity', severity as Severity)
 
   const { data, error, count } = await query
 

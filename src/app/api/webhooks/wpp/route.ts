@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
 import { dispatchAlerts } from '@/lib/alerts/dispatch'
+import type { DispatchStatus } from '@/lib/supabase/types'
 
 const WEBHOOK_SECRET = process.env.WPP_WEBHOOK_SECRET!
 
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
         instance_id: instanceId,
         tenant_id: inst.tenant_id,
         recipient_count: (payload.recipient_count as number) ?? 0,
-        delivery_status: (payload.delivery_status as string) ?? 'success',
+        delivery_status: (payload.delivery_status as DispatchStatus) ?? 'success',
         error_code: (payload.error_code as string) ?? null,
       })
     }

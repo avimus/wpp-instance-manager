@@ -1,22 +1,21 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { getUserCtx } from '@/lib/user-context'
 import { Errors, ok } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import * as wpp from '@/lib/wpp/client'
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Errors.unauthorized()
-
-  const role = user.app_metadata?.role as string
-  const tenantId = user.app_metadata?.tenant_id as string | undefined
+  const ctx = await getUserCtx()
+  if (!ctx) return Errors.unauthorized()
+  const { role, tenantId } = ctx
 
   const svc = createServiceClient()
-  const { data: instance } = await svc
+  const { data: instanceRaw } = await svc
     .from('instances')
     .select('id, wpp_session_id, tenant_id, status')
     .eq('id', params.id)
     .single()
+  const instance = instanceRaw as { id: string; wpp_session_id: string | null; tenant_id: string; status: string } | null
 
   if (!instance) return Errors.notFound('Instance not found')
   if (role !== 'admin' && instance.tenant_id !== tenantId) return Errors.forbidden()

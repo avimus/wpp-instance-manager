@@ -1,17 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
+import { getUserCtx } from '@/lib/user-context'
 import { redirect } from 'next/navigation'
 
 // Protects /instancias/[id] — authenticated clients only.
 // /dashboard is handled by app/dashboard/page.tsx (outside this group).
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const ctx = await getUserCtx()
 
-  if (!user) redirect('/login')
+  if (!ctx) redirect('/login')
 
-  const role = user.app_metadata?.role as string | undefined
-  if (role !== 'client' && role !== 'admin') redirect('/login')
+  // role comes from profiles table (fallback from app_metadata) via getUserCtx,
+  // so manually-created users without app_metadata.role are handled correctly.
+  if (ctx.role !== 'client' && ctx.role !== 'admin') redirect('/login')
 
   return (
     <div className="min-h-screen flex bg-gray-50">
@@ -29,7 +29,7 @@ export default async function ClientLayout({ children }: { children: React.React
           </a>
         </nav>
         <div className="p-4 border-t border-gray-100">
-          <p className="text-xs text-gray-400 truncate">{user.email}</p>
+          <p className="text-xs text-gray-400 truncate">{ctx.email}</p>
         </div>
       </aside>
       <main className="flex-1 p-8 overflow-auto">{children}</main>

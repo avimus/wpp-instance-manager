@@ -8,8 +8,10 @@ export default async function TenantsPage() {
   const supabase = createClient()
   const svc = createServiceClient()
 
+  type TenantRow = { id: string; name: string; status: string; primary_contact_email: string; plan: { name: string; max_instances: number } | null }
+
   const [
-    { data: tenants },
+    { data: tenantsRaw },
     { data: plans, error: plansError },
   ] = await Promise.all([
     supabase
@@ -21,6 +23,8 @@ export default async function TenantsPage() {
       .select('id, name, max_instances')
       .order('max_instances'),
   ])
+
+  const tenants = tenantsRaw as unknown as TenantRow[] | null
 
   if (plansError) {
     console.error('[TenantsPage] plans query failed:', {
@@ -55,7 +59,7 @@ export default async function TenantsPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {(tenants ?? []).map(t => {
-              const plan = t.plan as { name: string; max_instances: number } | null
+              const plan = t.plan
               return (
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">

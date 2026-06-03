@@ -2,6 +2,16 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { TenantDetailActions } from '@/components/admin/TenantDetailActions'
+import type { TenantStatus } from '@/lib/supabase/types'
+
+type TenantWithPlan = {
+  id: string
+  name: string
+  status: TenantStatus
+  plan_id: string
+  primary_contact_email: string
+  plan: { name: string; max_instances: number } | null
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +19,7 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
   const svc = createServiceClient()
 
   const [
-    { data: tenant },
+    { data: tenantRaw },
     { data: plans },
     { data: instances },
   ] = await Promise.all([
@@ -29,9 +39,11 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
       .order('created_at', { ascending: false }),
   ])
 
+  // Cast needed because placeholder types lack relationship definitions for the join
+  const tenant = tenantRaw as unknown as TenantWithPlan | null
   if (!tenant) notFound()
 
-  const plan = (tenant as unknown as { plan: { name: string; max_instances: number } | null }).plan
+  const plan = tenant.plan
   const statusLabel = tenant.status === 'active' ? 'Ativo' : 'Suspenso'
   const statusColor = tenant.status === 'active' ? 'text-green-700' : 'text-red-600'
 

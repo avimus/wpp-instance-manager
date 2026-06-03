@@ -17,7 +17,32 @@ export async function GET(request: NextRequest) {
   const explicitNext = searchParams.get('next')
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=missing_code`)
+    // Explicit error from Supabase (e.g. expired or already-used link)
+    const errorParam = searchParams.get('error')
+    if (errorParam) {
+      return NextResponse.redirect(
+        `${origin}/login?error=${encodeURIComponent(errorParam)}`,
+      )
+    }
+
+    // Implicit flow: Supabase placed tokens in the URL hash (e.g. invite emails).
+    // The hash is never sent to the server, so we serve a minimal HTML page that
+    // reads window.location.hash client-side and forwards it to /auth/confirm,
+    // which is a Client Component that can call supabase.auth.setSession().
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Redirecionando...</title></head>
+<body>
+<script>
+  // Forward hash tokens to /auth/confirm as a hash fragment so they stay client-side.
+  location.replace('/auth/confirm' + location.hash)
+</script>
+<p>Redirecionando...</p>
+</body>
+</html>`
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    })
   }
 
   const cookieStore = cookies()
@@ -43,9 +68,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)
   }
 
-  // If the caller explicitly specified where to go (e.g. password reset), honour it
+  // If the caller explicitly specified where to go (e.g. password reset), honour it.
+  // For password-reset redirects to set-password, append mode=reset so the page
+  // knows not to redirect away users who already have password_set=true.
   if (explicitNext) {
-    return NextResponse.redirect(`${origin}${explicitNext}`)
+    const dest = explicitNext === '/auth/set-password'
+      ? '/auth/set-password?mode=reset'
+      : explicitNext
+    return NextResponse.redirect(`${origin}${dest}`)
   }
 
   // First-time invite: password not yet set → force password setup

@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getUserCtx } from '@/lib/user-context'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { InstancesTable } from '@/components/admin/InstancesTable'
@@ -152,14 +153,10 @@ async function ClientDashboard({ tenantId }: { tenantId: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const ctx = await getUserCtx()
+  if (!ctx) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const role = user.app_metadata?.role as string | undefined
-  const tenantId = user.app_metadata?.tenant_id as string | undefined
-  const email = user.email ?? ''
+  const { role, tenantId, email } = ctx
 
   return (
     <div className="min-h-screen flex bg-gray-50">

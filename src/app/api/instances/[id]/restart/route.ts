@@ -10,11 +10,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if (user.app_metadata?.role !== 'admin') return Errors.forbidden()
 
   const svc = createServiceClient()
-  const { data: instance } = await svc
+  const { data: instanceRaw } = await svc
     .from('instances')
     .select('id, wpp_session_id, tenant_id, display_name')
     .eq('id', params.id)
     .single()
+  const instance = instanceRaw as { id: string; wpp_session_id: string | null; tenant_id: string; display_name: string } | null
 
   if (!instance) return Errors.notFound('Instance not found')
 

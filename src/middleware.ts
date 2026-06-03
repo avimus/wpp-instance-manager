@@ -28,6 +28,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth/callback') ||
+    pathname.startsWith('/auth/confirm') ||
     pathname.startsWith('/api/webhooks')
   ) {
     return supabaseResponse

@@ -29,9 +29,11 @@ function makeLogger(baseCtx: Context = {}) {
       // Human-readable output in development
       const prefix = `[${level.toUpperCase()}]`
       const extra = Object.keys(ctx).length ? ctx : undefined
-      extra
-        ? consoleFn[level](prefix, message, extra)
-        : consoleFn[level](prefix, message)
+      if (extra) {
+        consoleFn[level](prefix, message, extra)
+      } else {
+        consoleFn[level](prefix, message)
+      }
     } else {
       // Structured JSON for Cloud Logging — fields match the constitution requirement:
       // severity, message, timestamp + any context (tenant_id, instance_id, trace_id…)
