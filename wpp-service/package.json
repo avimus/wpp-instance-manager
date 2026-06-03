@@ -2,9 +2,11 @@
   "name": "wpp-service",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -12,6 +14,7 @@
   "type": "commonjs",
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
+    "@wppconnect-team/wppconnect": "^1.41.3",
     "express": "^5.2.1",
     "pino": "^10.3.1"
   },

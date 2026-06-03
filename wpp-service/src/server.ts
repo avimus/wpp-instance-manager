@@ -1,6 +1,6 @@
 import express from 'express'
 import pino from 'pino'
-import { startSession, stopSession, getStatus } from './sessions/manager'
+import { startSession, stopSession, getStatus, getSessionCount, sendMessage } from './sessions/manager'
 
 const app = express()
 const logger = pino({ level: 'info' })
@@ -20,7 +20,7 @@ app.use((req, res, next) => {
 })
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', sessions: 0 })
+  res.json({ status: 'ok', sessions: getSessionCount() })
 })
 
 app.post('/sessions/:sessionId/start', async (req, res) => {
@@ -49,15 +49,20 @@ app.get('/sessions/:sessionId/status', (req, res) => {
 })
 
 app.post('/sessions/:sessionId/send', async (req, res) => {
-  const state = getStatus(req.params.sessionId)
-  if (state.status !== 'online') {
-    res.status(503).json({ error: 'INSTANCE_OFFLINE', status: state.status })
-    return
-  }
-  // In production: call wppconnect sendTextMessage here
   const { to, message } = req.body as { to: string; message: string }
-  logger.info({ sessionId: req.params.sessionId, to }, 'Message dispatched (mock)')
-  res.json({ message_id: `mock-${Date.now()}`, status: 'sent', to, message_length: message?.length ?? 0 })
+  try {
+    const messageId = await sendMessage(req.params.sessionId, to, message)
+    res.json({ message_id: messageId, status: 'sent' })
+  } catch (err) {
+    const isOffline = err instanceof Error && err.message === 'SESSION_OFFLINE'
+    if (isOffline) {
+      const state = getStatus(req.params.sessionId)
+      res.status(503).json({ error: 'INSTANCE_OFFLINE', status: state.status })
+    } else {
+      logger.error({ err, sessionId: req.params.sessionId }, 'send message failed')
+      res.status(500).json({ error: 'INTERNAL_ERROR' })
+    }
+  }
 })
 
 const PORT = process.env.PORT ?? 3001
