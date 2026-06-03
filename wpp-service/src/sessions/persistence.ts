@@ -1,10 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import pino from 'pino'
 
 const logger = pino({ level: 'info' })
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  // ws and Supabase's WebSocketLikeConstructor differ only in ErrorEvent shape; cast is safe at runtime
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  { realtime: { transport: WebSocket as any } },
 )
 
 export async function saveSessionData(instanceId: string, sessionData: string): Promise<void> {

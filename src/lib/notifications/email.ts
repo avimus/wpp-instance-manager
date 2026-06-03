@@ -1,8 +1,13 @@
 import { Resend } from 'resend'
 import { logger } from '@/lib/logger'
 
-const resend = new Resend(process.env.RESEND_API_KEY!)
 const FROM = process.env.ALERT_FROM_EMAIL ?? 'alertas@wpp-manager.com'
+
+let _resend: Resend | null = null
+function getResend(): Resend {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY!)
+  return _resend
+}
 
 export async function sendOfflineAlert(params: {
   to: string
@@ -11,7 +16,7 @@ export async function sendOfflineAlert(params: {
   tenantName: string
 }): Promise<boolean> {
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: FROM,
       to: params.to,
       subject: `⚠️ Instância offline: ${params.instanceName}`,
@@ -36,7 +41,7 @@ export async function sendRecoveryAlert(params: {
   tenantName: string
 }): Promise<boolean> {
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: FROM,
       to: params.to,
       subject: `✅ Instância reconectada: ${params.instanceName}`,
